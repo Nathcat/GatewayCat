@@ -26,6 +26,8 @@ dependencies {
 
     // This dependency is used by the application.
     implementation(libs.guava)
+
+    implementation(files("libs/json-simple-1.1.1.jar"))
 }
 
 // Apply a specific Java toolchain to ease working on different environments.
@@ -37,7 +39,7 @@ java {
 
 application {
     // Define the main class for the application.
-    mainClass = "org.example.AppKt"
+    mainClass = "net.nathcat.gateway.MainKt"
 }
 
 tasks.named<Test>("test") {
