@@ -1,0 +1,3 @@
+[submodule "json-cpp"]
+	path = json-cpp
+	url = https://github.com/nlohmann/json/
