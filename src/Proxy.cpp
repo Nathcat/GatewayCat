@@ -1,13 +1,14 @@
 #include <GatewayCat/Layers/Proxy.hpp>
+#include <iostream>
 
 template <> nathcat::gateway::pipeline::Layer<InSocket>::Layer() {}
 
 void nathcat::gateway::layers::LocalProxy::operator()() {
   while (getParent()->running()) {
     // Get the next socket
-    InSocket next = getNext();
+    InSocket next;
 
-    if (!getParent()->running())
+    if (!getNext(&next))
       break;
 
     // Open a socket to the proxy target

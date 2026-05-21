@@ -1,6 +1,7 @@
 #ifndef GATEWAYCAT_PIPELINE
 #define GATEWAYCAT_PIPELINE
 
+#include <cstring>
 #include <mutex>
 #include <queue>
 #include <thread>
@@ -21,7 +22,7 @@ template <typename T> class Pipeline;
  */
 template <typename T> class Layer {
 private:
-  const Pipeline<T> *parent;
+  Pipeline<T> *parent;
   int id;
   std::queue<T> queue;
   std::mutex queueMutex;
@@ -34,7 +35,7 @@ public:
     this->queue = l.queue;
   }
 
-  void init(const Pipeline<T> *parent, const int id) {
+  void init(Pipeline<T> *parent, const int id) {
     this->parent = parent;
     this->id = id;
   }
@@ -47,23 +48,51 @@ public:
    *
    * @param d The data object to accept
    */
-  void operator<<(T d);
+  void operator<<(T d) {
+    queueMutex.lock();
+    queue.push(d);
+    queueMutex.unlock();
+  }
 
   /**
    * @brief Send a data object to the next layer
    *
    * @param d The data object to send
    */
-  void operator>>(T d);
+  void operator>>(T d) {
+    Layer<T> *next = parent->getLayer(id + 1);
+    (*next) << d;
+  }
 
   /**
    * @brief Get the next item in the queue. Will block until a new object can be
    * obtained. If the pipeline stops running while waiting, this function will
    * immediately return NULL.
    *
-   * @return Returns the next item to be processed.
+   * @paramn out Output for the next object
+   * @return true if a new object was returned, false otherwise
    */
-  T getNext();
+  bool getNext(T *out) {
+    int queueSize = 0;
+
+    while (queueSize == 0) {
+      queueMutex.lock();
+      queueSize = queue.size();
+      queueMutex.unlock();
+
+      if (!getParent()->running())
+        return false;
+    }
+
+    queueMutex.lock();
+    T d = queue.front();
+    queue.pop();
+    queueMutex.unlock();
+
+    std::memcpy(out, &d, sizeof(T));
+
+    return true;
+  }
 
   /**
    * @brief Thread execution body. Data acceptance and processing should be done
@@ -79,7 +108,11 @@ public:
  * @param layer The layer to start
  * @return The new thread in which the layer is running
  */
-template <typename T> std::thread start_layer(Layer<T> &layer);
+template <typename T> std::thread start_layer(Layer<T> &layer) {
+  std::thread t([](Layer<T> &layer) { layer(); }, std::ref(layer));
+
+  return t;
+}
 
 /**
  * @class Pipeline
@@ -102,7 +135,7 @@ public:
    *
    * @param d The data object to insert
    */
-  void operator<<(T d) { layers.front() << d; }
+  void operator<<(T d) { (*(layers.front())) << d; }
 
   Layer<T> *getLayer(int id) { return layers[id]; }
 
@@ -143,12 +176,26 @@ public:
    *
    * @param threadCount The number of threads to start per layer
    */
-  void start(int threadCount);
+  void start(int threadCount) {
+    for (int i = 0; i < layers.size(); i++) {
+      threads.push_back(std::vector<std::thread>());
+
+      for (int j = 0; j < threadCount; j++) {
+        threads.at(i).push_back(start_layer(*(layers.at(i))));
+      }
+    }
+  }
 
   /**
    * @brief Waits for all threads to join the main thread.
    */
-  void waitForStop();
+  void waitForStop() {
+    for (int i = 0; i < threads.size(); i++) {
+      for (int j = 0; j < threads.at(i).size(); j++) {
+        threads.at(i).at(j).join();
+      }
+    }
+  }
 };
 }; // namespace pipeline
 }; // namespace gateway
