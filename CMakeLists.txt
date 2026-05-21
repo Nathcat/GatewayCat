@@ -8,6 +8,10 @@ add_executable(GatewayCat
   src/main.cpp
 
   src/Config.cpp
+  src/Acceptor.cpp
+  src/Proxy.cpp
+  src/Pipeline.cpp
+  src/Command.cpp
 )
 
 target_include_directories(GatewayCat PUBLIC
